@@ -3,12 +3,11 @@ import { useState, useEffect } from "react";
 const STORAGE_KEY = "stock-gastronomia-v1";
 const JSONBIN_API_KEY = "$2a$10$V3TBnw291RL7fgZTqobZqufzqdhpgr/Wciyxqy3gguyFCp6p4gYzy";
 const JSONBIN_BIN_ID_KEY = "jsonbin-bin-id-v1";
+const JSONBIN_BIN_ID_FIXED = "69b3b1d2b7ec241ddc64e182";
 
 async function loadFromCloud() {
-  const binId = localStorage.getItem(JSONBIN_BIN_ID_KEY);
-  if (!binId) return null;
   try {
-    const r = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+    const r = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID_FIXED}/latest`, {
       headers: { "X-Master-Key": JSONBIN_API_KEY }
     });
     const d = await r.json();
@@ -16,27 +15,14 @@ async function loadFromCloud() {
   } catch { return null; }
 }
 
-async function saveToCloud(data: object, binId: string | null): Promise<string | null> {
+async function saveToCloud(data: object): Promise<void> {
   try {
-    if (!binId) {
-      const r = await fetch("https://api.jsonbin.io/v3/b", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Master-Key": JSONBIN_API_KEY, "X-Bin-Name": "limbo-stock" },
-        body: JSON.stringify(data)
-      });
-      const d = await r.json();
-      const id = d.metadata?.id;
-      if (id) localStorage.setItem(JSONBIN_BIN_ID_KEY, id);
-      return id;
-    } else {
-      await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", "X-Master-Key": JSONBIN_API_KEY },
-        body: JSON.stringify(data)
-      });
-      return binId;
-    }
-  } catch { return binId; }
+    await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID_FIXED}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Master-Key": JSONBIN_API_KEY },
+      body: JSON.stringify(data)
+    });
+  } catch {}
 }
 const UNIDADES = ["kg","g","l","ml","u","cajas","bolsas","latas","paquetes","pilones","barras","hormas","maples","cajones","ramos","ramitas","puñados","cajitas"];
 
@@ -388,24 +374,13 @@ export default function App() {
   const [modalActualizar, setModalActualizar] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const binIdRef = useState<string | null>(localStorage.getItem(JSONBIN_BIN_ID_KEY))[0];
-  const binIdState = { current: binIdRef };
 
   useEffect(() => {
     (async () => {
       try {
         const cloud = await loadFromCloud();
-        if (cloud) {
-          if (cloud.insumos) setInsumos(cloud.insumos);
-          if (cloud.historial) setHistorial(cloud.historial);
-        } else {
-          const raw = localStorage.getItem(STORAGE_KEY);
-          if (raw) {
-            const d = JSON.parse(raw);
-            if (d.insumos) setInsumos(d.insumos);
-            if (d.historial) setHistorial(d.historial);
-          }
-        }
+        if (cloud?.insumos) setInsumos(cloud.insumos);
+        if (cloud?.historial) setHistorial(cloud.historial);
       } catch {}
       setLoaded(true);
     })();
@@ -414,9 +389,8 @@ export default function App() {
   useEffect(() => {
     if (!loaded) return;
     const data = { insumos, historial };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     setSyncing(true);
-    saveToCloud(data, localStorage.getItem(JSONBIN_BIN_ID_KEY)).then(() => setSyncing(false));
+    saveToCloud(data).then(() => setSyncing(false));
   }, [insumos, historial, loaded]);
 
   const actualizarStock = (id, nuevaCantidad, obs) => {
